@@ -28,7 +28,7 @@ export function ScheduleCallModal({ open, onClose }: Props) {
     date: new Date().toISOString().split('T')[0],
     time: '07:30',
     recurrence: 'daily' as Recurrence,
-    goalIds: [],
+    goalIds: [] as string[],
   });
   const [loading, setLoading] = useState(false);
 
