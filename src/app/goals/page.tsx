@@ -119,9 +119,9 @@ export default function GoalsPage() {
       </main>
 
       {showModal && (
-        <Modal onClose={() => setShowModal(false)}>
+        <Modal open={showModal} onClose={() => setShowModal(false)} title="New goal">
           <div className="p-6 space-y-4">
-            <h2 className="text-lg font-semibold">New goal</h2>
+            
             <div>
               <label className="text-sm text-muted-foreground mb-1 block">Goal title</label>
               <Input
