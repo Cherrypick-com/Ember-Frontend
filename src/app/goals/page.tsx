@@ -93,7 +93,7 @@ export default function GoalsPage() {
                 <div className="flex items-start gap-3">
                   <span className="text-2xl">{goal.emoji || '🎯'}</span>
                   <div>
-                    <Pill color="green">Active</Pill>
+                    <Pill color="sage">Active</Pill>
                     <h3 className="font-medium text-foreground mt-1">{goal.title}</h3>
                     <p className="text-sm text-muted-foreground mt-1">{goal.description}</p>
                     <Pill color="gray" className="mt-2">{CATEGORIES.find((c) => c.value === goal.category)?.label || goal.category}</Pill>
