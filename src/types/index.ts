@@ -23,6 +23,7 @@ export interface Goal {
   userId: string;
   title: string;
   category: GoalCategory;
+  emoji?: string;
   description?: string;
   active: boolean;
   streakCount: number;
