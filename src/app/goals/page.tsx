@@ -5,13 +5,13 @@ import { Nav } from '@/components/Nav';
 import { api } from '@/lib/api';
 import type { Goal, GoalCategory } from '@/types';
 
-const CATEGORIES: { value: GoalCategory; emoji: string; label: string }[] = [
-  { value: 'mindfulness', emoji: '🧘', label: 'Mindfulness' },
-  { value: 'fitness',     emoji: '💪', label: 'Fitness' },
-  { value: 'learning',    emoji: '📚', label: 'Learning' },
-  { value: 'health',      emoji: '🌿', label: 'Health' },
-  { value: 'productivity',emoji: '⚡', label: 'Productivity' },
-  { value: 'creative',    emoji: '✨', label: 'Creative' },
+const CATEGORIES = [
+  { value: 'mindfulness' as GoalCategory, emoji: '🧘', label: 'Mindfulness' },
+  { value: 'fitness' as GoalCategory, emoji: '💪', label: 'Fitness' },
+  { value: 'learning' as GoalCategory, emoji: '📚', label: 'Learning' },
+  { value: 'health' as GoalCategory, emoji: '🌿', label: 'Health' },
+  { value: 'productivity' as GoalCategory, emoji: '⚡', label: 'Productivity' },
+  { value: 'creative' as GoalCategory, emoji: '✨', label: 'Creative' },
 ];
 
 const USER_ID = 'd05adcfb-62d3-45ee-9911-df183097e3a0';
@@ -48,7 +48,7 @@ export default function GoalsPage() {
       await api.goals.create({ userId: USER_ID, ...newGoal });
       await fetchGoals();
       setShowModal(false);
-      setNewGoal({ title: '', description: '', category: 'mindfulness', emoji: '🧘' });
+      setNewGoal({ title: '', description: '', category: 'mindfulness' as GoalCategory, emoji: '🧘' });
     } catch (e) {
       console.error('Failed to create goal', e);
     } finally {
@@ -59,7 +59,7 @@ export default function GoalsPage() {
   async function deleteGoal(goalId: string) {
     try {
       await api.goals.delete(goalId);
-      setGoals(goals.filter(g => g.id !== goalId));
+      setGoals(goals.filter((g) => g.id !== goalId));
     } catch (e) {
       console.error('Failed to delete goal', e);
     }
@@ -73,7 +73,7 @@ export default function GoalsPage() {
           <div>
             <h1 className="text-2xl font-semibold text-foreground">Your goals</h1>
             <p className="text-muted-foreground text-sm mt-1">
-              Everything Sage checks in on. Each goal becomes part of your buddy's context on every call.
+              Everything Sage checks in on. Each goal becomes part of your buddy context on every call.
             </p>
           </div>
           <button
@@ -98,7 +98,7 @@ export default function GoalsPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {goals.map(goal => (
+            {goals.map((goal) => (
               <div key={goal.id} className="border border-border rounded-xl p-4 flex items-start justify-between gap-4 bg-card">
                 <div className="flex items-start gap-3">
                   <span className="text-2xl">{goal.emoji || '🎯'}</span>
@@ -107,7 +107,7 @@ export default function GoalsPage() {
                     <h3 className="font-medium text-foreground">{goal.title}</h3>
                     <p className="text-sm text-muted-foreground mt-1">{goal.description}</p>
                     <span className="text-xs px-2 py-0.5 rounded-full border border-border text-muted-foreground mt-2 inline-block">
-                      {CATEGORIES.find(c => c.value === goal.category)?.label || goal.category}
+                      {CATEGORIES.find((c) => c.value === goal.category)?.label || goal.category}
                     </span>
                   </div>
                 </div>
@@ -138,4 +138,57 @@ export default function GoalsPage() {
               <label className="text-sm text-muted-foreground mb-1 block">Goal title</label>
               <input
                 className="w-full border border-border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-foreground"
-                placehol
+                placeholder="e.g. Morning meditation"
+                value={newGoal.title}
+                onChange={(e) => setNewGoal({ ...newGoal, title: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="text-sm text-muted-foreground mb-1 block">Description</label>
+              <textarea
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-foreground resize-none"
+                rows={3}
+                placeholder="Describe what this goal looks like in practice..."
+                value={newGoal.description}
+                onChange={(e) => setNewGoal({ ...newGoal, description: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="text-sm text-muted-foreground mb-1 block">Category</label>
+              <div className="flex flex-wrap gap-2">
+                {CATEGORIES.map((cat) => (
+                  <button
+                    key={cat.value}
+                    onClick={() => setNewGoal({ ...newGoal, category: cat.value, emoji: cat.emoji })}
+                    className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                      newGoal.category === cat.value
+                        ? 'bg-foreground text-background border-foreground'
+                        : 'border-border text-muted-foreground hover:border-foreground'
+                    }`}
+                  >
+                    {cat.emoji} {cat.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => setShowModal(false)}
+                className="flex-1 px-4 py-2 rounded-full border border-border text-sm hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={createGoal}
+                disabled={saving || !newGoal.title.trim()}
+                className="flex-1 px-4 py-2 rounded-full bg-foreground text-background text-sm disabled:opacity-50"
+              >
+                {saving ? 'Saving...' : 'Save goal'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
