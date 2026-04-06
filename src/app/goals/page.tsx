@@ -32,7 +32,7 @@ export default function GoalsPage() {
 
   async function fetchGoals() {
     try {
-      const data = await api.getGoals(USER_ID);
+      const data = await api.goals.list(USER_ID);
       setGoals(data.goals || []);
     } catch (e) {
       console.error('Failed to fetch goals', e);
@@ -45,7 +45,7 @@ export default function GoalsPage() {
     if (!newGoal.title.trim()) return;
     setSaving(true);
     try {
-      await api.createGoal({ userId: USER_ID, ...newGoal });
+      await api.goals.create({ userId: USER_ID, ...newGoal });
       await fetchGoals();
       setShowModal(false);
       setNewGoal({ title: '', description: '', category: 'mindfulness', emoji: '🧘' });
@@ -58,7 +58,7 @@ export default function GoalsPage() {
 
   async function deleteGoal(goalId: string) {
     try {
-      await api.deleteGoal(goalId);
+      await api.goals.delete(goalId);
       setGoals(goals.filter(g => g.id !== goalId));
     } catch (e) {
       console.error('Failed to delete goal', e);
