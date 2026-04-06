@@ -96,7 +96,7 @@ export default function GoalsPage() {
                     <Pill color="sage">Active</Pill>
                     <h3 className="font-medium text-foreground mt-1">{goal.title}</h3>
                     <p className="text-sm text-muted-foreground mt-1">{goal.description}</p>
-                    <Pill color="gray" className="mt-2">{CATEGORIES.find((c) => c.value === goal.category)?.label || goal.category}</Pill>
+                    <Pill color="gray">{CATEGORIES.find((c) => c.value === goal.category)?.label || goal.category}</Pill>
                   </div>
                 </div>
                 <button
