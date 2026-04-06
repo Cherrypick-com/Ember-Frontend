@@ -1,7 +1,7 @@
-// src/app/goals/page.tsx
 'use client';
 import { useState, useEffect } from 'react';
 import { Nav } from '@/components/Nav';
+import { Card, Pill, Button, Input, Textarea, Modal } from '@/components/ui';
 import { api } from '@/lib/api';
 import type { Goal, GoalCategory } from '@/types';
 
@@ -76,39 +76,27 @@ export default function GoalsPage() {
               Everything Sage checks in on. Each goal becomes part of your buddy context on every call.
             </p>
           </div>
-          <button
-            onClick={() => setShowModal(true)}
-            className="px-4 py-2 rounded-full bg-foreground text-background text-sm font-medium hover:opacity-90"
-          >
-            + New goal
-          </button>
+          <Button onClick={() => setShowModal(true)}>+ New goal</Button>
         </div>
 
         {loading ? (
           <p className="text-center py-12 text-muted-foreground">Loading your goals...</p>
         ) : goals.length === 0 ? (
-          <div className="text-center py-12 border border-dashed border-border rounded-xl">
+          <Card className="text-center py-12">
             <p className="text-muted-foreground mb-4">No goals yet. Add your first goal!</p>
-            <button
-              onClick={() => setShowModal(true)}
-              className="px-4 py-2 rounded-full bg-foreground text-background text-sm"
-            >
-              + Add a goal
-            </button>
-          </div>
+            <Button onClick={() => setShowModal(true)}>+ Add a goal</Button>
+          </Card>
         ) : (
           <div className="space-y-3">
             {goals.map((goal) => (
-              <div key={goal.id} className="border border-border rounded-xl p-4 flex items-start justify-between gap-4 bg-card">
+              <Card key={goal.id} className="p-4 flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3">
                   <span className="text-2xl">{goal.emoji || '🎯'}</span>
                   <div>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 mb-1 inline-block">Active</span>
-                    <h3 className="font-medium text-foreground">{goal.title}</h3>
+                    <Pill variant="success">Active</Pill>
+                    <h3 className="font-medium text-foreground mt-1">{goal.title}</h3>
                     <p className="text-sm text-muted-foreground mt-1">{goal.description}</p>
-                    <span className="text-xs px-2 py-0.5 rounded-full border border-border text-muted-foreground mt-2 inline-block">
-                      {CATEGORIES.find((c) => c.value === goal.category)?.label || goal.category}
-                    </span>
+                    <Pill className="mt-2">{CATEGORIES.find((c) => c.value === goal.category)?.label || goal.category}</Pill>
                   </div>
                 </div>
                 <button
@@ -117,7 +105,7 @@ export default function GoalsPage() {
                 >
                   Remove
                 </button>
-              </div>
+              </Card>
             ))}
           </div>
         )}
@@ -131,13 +119,12 @@ export default function GoalsPage() {
       </main>
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md space-y-4 max-h-[90vh] overflow-y-auto">
+        <Modal onClose={() => setShowModal(false)}>
+          <div className="p-6 space-y-4">
             <h2 className="text-lg font-semibold">New goal</h2>
             <div>
               <label className="text-sm text-muted-foreground mb-1 block">Goal title</label>
-              <input
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-foreground"
+              <Input
                 placeholder="e.g. Morning meditation"
                 value={newGoal.title}
                 onChange={(e) => setNewGoal({ ...newGoal, title: e.target.value })}
@@ -145,9 +132,7 @@ export default function GoalsPage() {
             </div>
             <div>
               <label className="text-sm text-muted-foreground mb-1 block">Description</label>
-              <textarea
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-foreground resize-none"
-                rows={3}
+              <Textarea
                 placeholder="Describe what this goal looks like in practice..."
                 value={newGoal.description}
                 onChange={(e) => setNewGoal({ ...newGoal, description: e.target.value })}
@@ -172,22 +157,13 @@ export default function GoalsPage() {
               </div>
             </div>
             <div className="flex gap-2 pt-2">
-              <button
-                onClick={() => setShowModal(false)}
-                className="flex-1 px-4 py-2 rounded-full border border-border text-sm hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={createGoal}
-                disabled={saving || !newGoal.title.trim()}
-                className="flex-1 px-4 py-2 rounded-full bg-foreground text-background text-sm disabled:opacity-50"
-              >
+              <Button variant="ghost" onClick={() => setShowModal(false)} className="flex-1">Cancel</Button>
+              <Button onClick={createGoal} disabled={saving || !newGoal.title.trim()} className="flex-1">
                 {saving ? 'Saving...' : 'Save goal'}
-              </button>
+              </Button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );
