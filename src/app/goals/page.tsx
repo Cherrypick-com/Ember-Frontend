@@ -1,6 +1,6 @@
 // src/app/goals/page.tsx
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Nav } from '@/components/Nav';
 import { Card, Pill, Button, Input, Textarea, Modal } from '@/components/ui';
 import type { GoalCategory } from '@/types';
@@ -9,106 +9,194 @@ const CATEGORIES: { value: GoalCategory; emoji: string; label: string }[] = [
   { value: 'mindfulness', emoji: '🧘', label: 'Mindfulness' },
   { value: 'fitness',     emoji: '💪', label: 'Fitness' },
   { value: 'learning',    emoji: '📚', label: 'Learning' },
-  { value: 'health',      emoji: '🥗', label: 'Health' },
+  { value: 'health',      emoji: '🌿', label: 'Health' },
   { value: 'productivity',emoji: '⚡', label: 'Productivity' },
   { value: 'creative',    emoji: '✨', label: 'Creative' },
 ];
 
-const MOCK_GOALS = [
-  { id: '1', title: 'Morning meditation', category: 'mindfulness', desc: '10 min on Headspace, before breakfast, no phone first thing in the morning', streak: 4, active: true, color: 'var(--sage-light)', emoji: '🌿', pill: 'sage' as const },
-  { id: '2', title: 'French practice',    category: 'learning',    desc: '15 min daily on Duolingo, plus one French podcast episode per week',        streak: 2, active: true, color: 'var(--sky-light)', emoji: '🇫🇷', pill: 'sky'  as const },
-  { id: '3', title: 'No social media',    category: 'health',      desc: 'No Instagram or TikTok before noon. Only check socials twice a day max.',    streak: 0, active: true, color: 'var(--rose-light)', emoji: '📵', pill: 'rose' as const },
-  { id: '4', title: 'Evening journaling', category: 'mindfulness', desc: '10 minutes of free writing before bed. Three things I\'m grateful for.',    streak: 4, active: true, color: 'var(--gold-light)', emoji: '📓', pill: 'gold' as const },
-  { id: '5', title: 'Hydration goal',     category: 'health',      desc: '8 glasses of water per day. Keep a bottle on the desk at all times.',        streak: 4, active: true, color: 'var(--sage-light)', emoji: '💧', pill: 'sage' as const },
-];
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://ember-backend-production-79dc.up.railway.app';
+const USER_ID = 'd05adcfb-62d3-45ee-9911-df183097e3a0';
+
+type Goal = {
+  id: string;
+  title: string;
+  description: string;
+  category: GoalCategory;
+  emoji: string;
+  active: boolean;
+  streak?: number;
+};
 
 export default function GoalsPage() {
-  const [modalOpen, setModalOpen] = useState(false);
-  const [newGoal, setNewGoal] = useState({ title: '', category: 'mindfulness' as GoalCategory, description: '' });
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [newGoal, setNewGoal] = useState({
+    title: '',
+    description: '',
+    category: 'mindfulness' as GoalCategory,
+    emoji: '🧘',
+  });
 
-  function saveGoal() {
-    // TODO: call api.goals.create(...)
-    setModalOpen(false);
-    setNewGoal({ title: '', category: 'mindfulness', description: '' });
+  useEffect(() => {
+    fetchGoals();
+  }, []);
+
+  async function fetchGoals() {
+    try {
+      const res = await fetch(`${API_BASE}/api/goals/${USER_ID}`);
+      const data = await res.json();
+      setGoals(data.goals || []);
+    } catch (e) {
+      console.error('Failed to fetch goals', e);
+    } finally {
+      setLoading(false);
+    }
   }
 
+  async function createGoal() {
+    if (!newGoal.title.trim()) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/goals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: USER_ID, ...newGoal }),
+      });
+      if (res.ok) {
+        await fetchGoals();
+        setShowModal(false);
+        setNewGoal({ title: '', description: '', category: 'mindfulness', emoji: '🧘' });
+      }
+    } catch (e) {
+      console.error('Failed to create goal', e);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteGoal(goalId: string) {
+    try {
+      await fetch(`${API_BASE}/api/goals/${goalId}`, { method: 'DELETE' });
+      setGoals(goals.filter(g => g.id !== goalId));
+    } catch (e) {
+      console.error('Failed to delete goal', e);
+    }
+  }
+
+  const getCategoryEmoji = (category: string) =>
+    CATEGORIES.find(c => c.value === category)?.emoji || '🎯';
+
   return (
-    <>
-      <Nav userName="D" />
-      <main style={{ maxWidth: 1100, margin: '0 auto', padding: '2.5rem 2rem 4rem' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '2rem' }}>
+    <div className="min-h-screen bg-background">
+      <Nav />
+      <main className="max-w-2xl mx-auto px-4 py-8">
+        <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 400, marginBottom: 4 }}>Your goals</h1>
-            <p style={{ fontSize: 14, color: 'var(--ink-light)' }}>Everything Sage checks in on. Each goal becomes part of your buddy's context on every call.</p>
+            <h1 className="text-2xl font-semibold text-foreground">Your goals</h1>
+            <p className="text-muted-foreground text-sm mt-1">
+              Everything Sage checks in on. Each goal becomes part of your buddy's context on every call.
+            </p>
           </div>
-          <Button variant="ember" onClick={() => setModalOpen(true)}>+ New goal</Button>
+          <Button onClick={() => setShowModal(true)}>+ New goal</Button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
-          {MOCK_GOALS.map(goal => (
-            <div key={goal.id} style={goalCardStyle}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
-                <div style={{ width: 38, height: 38, borderRadius: 10, background: goal.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
-                  {goal.emoji}
+        {loading ? (
+          <div className="text-center py-12 text-muted-foreground">Loading your goals...</div>
+        ) : goals.length === 0 ? (
+          <Card className="text-center py-12">
+            <p className="text-muted-foreground mb-4">No goals yet. Add your first goal to get started!</p>
+            <Button onClick={() => setShowModal(true)}>+ Add a goal</Button>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {goals.map(goal => (
+              <Card key={goal.id} className="p-4 flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <span className="text-2xl">{goal.emoji || getCategoryEmoji(goal.category)}</span>
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Pill variant="success">Active</Pill>
+                    </div>
+                    <h3 className="font-medium text-foreground">{goal.title}</h3>
+                    <p className="text-sm text-muted-foreground mt-1">{goal.description}</p>
+                    {goal.streak ? (
+                      <p className="text-xs text-orange-500 mt-1">🔥 {goal.streak}-day streak</p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground mt-1">No calls yet</p>
+                    )}
+                    <Pill className="mt-2">{CATEGORIES.find(c => c.value === goal.category)?.label || goal.category}</Pill>
+                  </div>
                 </div>
-                <Pill color="sage">Active</Pill>
-              </div>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 400, marginBottom: 4 }}>{goal.title}</h3>
-              <p style={{ fontSize: 13, color: 'var(--ink-light)', marginBottom: 12, lineHeight: 1.5 }}>{goal.desc}</p>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 13, fontWeight: 500, color: goal.streak > 0 ? 'var(--ember)' : 'var(--ink-light)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  {goal.streak > 0 ? `🔥 ${goal.streak}-day streak` : 'No calls yet'}
-                </span>
-                <Pill color="gray">{goal.category.charAt(0).toUpperCase() + goal.category.slice(1)}</Pill>
-              </div>
-            </div>
-          ))}
+                <button
+                  onClick={() => deleteGoal(goal.id)}
+                  className="text-muted-foreground hover:text-destructive text-sm shrink-0"
+                >
+                  Remove
+                </button>
+              </Card>
+            ))}
+          </div>
+        )}
 
-          {/* Add new */}
-          <button onClick={() => setModalOpen(true)} style={addCardStyle}>
-            <span style={{ fontSize: 24 }}>+</span>
-            <span>Add a new goal</span>
-          </button>
-        </div>
+        <button
+          onClick={() => setShowModal(true)}
+          className="mt-6 w-full border border-dashed border-border rounded-xl py-4 text-muted-foreground hover:text-foreground hover:border-foreground transition-colors text-sm"
+        >
+          + Add a new goal
+        </button>
       </main>
 
-      {/* Add Goal Modal */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="New goal" subtitle="Add something you want Sage to check in on during calls.">
-        <Input label="Goal title" placeholder="e.g. Morning run, Bedtime routine…" value={newGoal.title} onChange={e => setNewGoal(p => ({ ...p, title: e.target.value }))} />
-
-        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-mid)', marginBottom: 8 }}>Category</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: '1.25rem' }}>
-          {CATEGORIES.map(cat => (
-            <button key={cat.value} onClick={() => setNewGoal(p => ({ ...p, category: cat.value }))}
-              style={{ padding: '10px 8px', borderRadius: 10, cursor: 'pointer', textAlign: 'center' as const, fontSize: 12, fontFamily: 'var(--font-body)', transition: 'all 0.15s', border: `1.5px solid ${newGoal.category === cat.value ? 'var(--ember)' : 'var(--cream-border)'}`, background: newGoal.category === cat.value ? 'var(--ember-light)' : 'white', color: newGoal.category === cat.value ? 'var(--ember)' : 'var(--ink-mid)', fontWeight: newGoal.category === cat.value ? 500 : 400 }}>
-              <span style={{ fontSize: 20, display: 'block', marginBottom: 4 }}>{cat.emoji}</span>
-              {cat.label}
-            </button>
-          ))}
-        </div>
-
-        <Textarea label="Extra context for Sage (optional)" placeholder="Duration, method, time of day, specific rules…" rows={3} value={newGoal.description} onChange={e => setNewGoal(p => ({ ...p, description: e.target.value }))} />
-
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: '1.5rem' }}>
-          <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancel</Button>
-          <Button variant="ember" onClick={saveGoal}>Add goal</Button>
-        </div>
-      </Modal>
-    </>
+      {showModal && (
+        <Modal onClose={() => setShowModal(false)}>
+          <div className="p-6 space-y-4">
+            <h2 className="text-lg font-semibold">New goal</h2>
+            <div>
+              <label className="text-sm text-muted-foreground mb-1 block">Goal title</label>
+              <Input
+                placeholder="e.g. Morning meditation"
+                value={newGoal.title}
+                onChange={e => setNewGoal({ ...newGoal, title: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="text-sm text-muted-foreground mb-1 block">Description</label>
+              <Textarea
+                placeholder="Describe what this goal looks like in practice..."
+                value={newGoal.description}
+                onChange={e => setNewGoal({ ...newGoal, description: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="text-sm text-muted-foreground mb-1 block">Category</label>
+              <div className="flex flex-wrap gap-2">
+                {CATEGORIES.map(cat => (
+                  <button
+                    key={cat.value}
+                    onClick={() => setNewGoal({ ...newGoal, category: cat.value, emoji: cat.emoji })}
+                    className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                      newGoal.category === cat.value
+                        ? 'bg-foreground text-background border-foreground'
+                        : 'border-border text-muted-foreground hover:border-foreground'
+                    }`}
+                  >
+                    {cat.emoji} {cat.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button variant="ghost" onClick={() => setShowModal(false)} className="flex-1">
+                Cancel
+              </Button>
+              <Button onClick={createGoal} disabled={saving || !newGoal.title.trim()} className="flex-1">
+                {saving ? 'Saving...' : 'Save goal'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
   );
 }
-
-const goalCardStyle: React.CSSProperties = {
-  background: 'white', border: '1px solid var(--cream-border)',
-  borderRadius: 'var(--radius)', padding: '1.25rem',
-  boxShadow: 'var(--shadow)', cursor: 'pointer',
-  transition: 'transform 0.15s, box-shadow 0.15s',
-};
-
-const addCardStyle: React.CSSProperties = {
-  background: 'var(--cream)', border: '1.5px dashed var(--cream-border)',
-  borderRadius: 'var(--radius)', padding: '1.25rem',
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-  gap: 8, cursor: 'pointer', color: 'var(--ink-light)', fontSize: 14,
-  transition: 'all 0.15s', minHeight: 160, fontFamily: 'var(--font-body)',
-};
