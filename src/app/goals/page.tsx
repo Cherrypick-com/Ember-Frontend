@@ -59,7 +59,7 @@ export default function GoalsPage() {
   async function deleteGoal(goalId: string) {
     try {
       await api.goals.delete(goalId);
-      setGoals(goals.filter((g) => g.id !== goalId));
+      setGoals((prev) => prev.filter((g) => g.id !== goalId));
     } catch (e) {
       console.error('Failed to delete goal', e);
     }

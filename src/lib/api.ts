@@ -38,8 +38,13 @@ export const api = {
     list: (userId: string) =>
       req<{ goals: Goal[] }>(`/api/goals/${userId}`),
 
-    create: (data: { userId: string; title: string; category: string; description?: string }) =>
-      req<{ goal: Goal }>('/api/goals', { method: 'POST', body: JSON.stringify(data) }),
+    create: (data: {
+      userId: string;
+      title: string;
+      category: string;
+      description?: string;
+      emoji?: string;
+    }) => req<{ goal: Goal }>('/api/goals', { method: 'POST', body: JSON.stringify(data) }),
 
     update: (goalId: string, data: Partial<Pick<Goal, 'title' | 'description' | 'active'>>) =>
       req<{ goal: Goal }>(`/api/goals/${goalId}`, { method: 'PATCH', body: JSON.stringify(data) }),
