@@ -276,7 +276,7 @@ export default function DashboardPage() {
               ))}
             </div>
 
-            <UpcomingCallsCalendar timeZone={timeZone} calls={calls} goals={goals} />
+            <UpcomingCallsCalendar />
 
             {/* Weekly streak */}
             <Card style={{ marginBottom: '1.5rem' }}>
