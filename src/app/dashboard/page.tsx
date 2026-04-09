@@ -6,7 +6,7 @@ import { addDays, startOfWeek } from 'date-fns';
 import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
 import { Card, Pill, Button } from '@/components/ui';
 import { ScheduleCallModal } from '@/components/ScheduleCallModal';
-import { UpcomingCallsCalendar } from '@/components/UpcomingCallsCalendar';
+import UpcomingCallsCalendar from '@/components/UpcomingCallsCalendar';
 import { api } from '@/lib/api';
 import type { BuddyTone, Goal, ProgressStats, ScheduledCall, User } from '@/types';
 
