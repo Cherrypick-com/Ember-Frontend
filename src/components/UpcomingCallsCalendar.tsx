@@ -19,15 +19,66 @@ function isUpcomingCall(c: ScheduledCall, nowMs: number): boolean {
   return new Date(c.scheduledAt).getTime() >= nowMs;
 }
 
-function groupUpcomingByLocalDate(calls: ScheduledCall[], timeZone: string, nowMs: number): Map<string, ScheduledCall[]> {
-  const map = new Map<string, ScheduledCall[]>();
-  for (const c of calls) {
-    if (!isUpcomingCall(c, nowMs)) continue;
-    const key = formatInTimeZone(new Date(c.scheduledAt), timeZone, 'yyyy-MM-dd');
-    const list = map.get(key) ?? [];
-    list.push(c);
-    map.set(key, list);
+interface CallOccurrence {
+  id: string;
+  scheduledAt: string;
+  call: ScheduledCall;
+}
+
+function buildMonthlyOccurrences(
+  calls: ScheduledCall[],
+  monthKey: string,
+  timeZone: string,
+  nowMs: number
+): Map<string, CallOccurrence[]> {
+  const map = new Map<string, CallOccurrence[]>();
+  if (!monthKey) return map;
+
+  const monthStart = toDate(`${monthKey}-01T12:00:00`, { timeZone });
+  const monthEnd = endOfMonth(monthStart);
+  const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+  const todayKey = formatInTimeZone(new Date(nowMs), timeZone, 'yyyy-MM-dd');
+
+  for (const call of calls) {
+    if (call.status === 'completed' || call.status === 'missed' || call.status === 'failed') continue;
+
+    const baseDate = new Date(call.scheduledAt);
+    const baseKey = formatInTimeZone(baseDate, timeZone, 'yyyy-MM-dd');
+    const baseWeekday = parseInt(formatInTimeZone(baseDate, timeZone, 'i'), 10); // 1=Mon .. 7=Sun
+    const timePart = formatInTimeZone(baseDate, timeZone, 'HH:mm:ss');
+    const startFromKey = baseKey > todayKey ? baseKey : todayKey;
+
+    if (!call.recurrence) {
+      if (!isUpcomingCall(call, nowMs)) continue;
+      const key = formatInTimeZone(baseDate, timeZone, 'yyyy-MM-dd');
+      if (!key.startsWith(monthKey)) continue;
+      const list = map.get(key) ?? [];
+      list.push({ id: call.id, scheduledAt: call.scheduledAt, call });
+      map.set(key, list);
+      continue;
+    }
+
+    for (const day of monthDays) {
+      const dayKey = formatInTimeZone(day, timeZone, 'yyyy-MM-dd');
+      if (dayKey < startFromKey) continue;
+
+      const weekday = parseInt(formatInTimeZone(day, timeZone, 'i'), 10);
+      if (call.recurrence === 'weekdays' && weekday > 5) continue;
+      if (call.recurrence === 'weekly' && weekday !== baseWeekday) continue;
+
+      const occurrenceDate = toDate(`${dayKey}T${timePart}`, { timeZone });
+      if (occurrenceDate.getTime() < nowMs) continue;
+
+      const list = map.get(dayKey) ?? [];
+      list.push({
+        id: `${call.id}-${dayKey}`,
+        scheduledAt: occurrenceDate.toISOString(),
+        call,
+      });
+      map.set(dayKey, list);
+    }
   }
+
   map.forEach((list) => {
     list.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
   });
@@ -58,7 +109,7 @@ export function UpcomingCallsCalendar({ timeZone, calls, goals }: Props) {
     return () => clearInterval(t);
   }, []);
 
-  const byDate = useMemo(() => groupUpcomingByLocalDate(calls, timeZone, nowMs), [calls, timeZone, nowMs]);
+  const byDate = useMemo(() => buildMonthlyOccurrences(calls, monthKey, timeZone, nowMs), [calls, monthKey, timeZone, nowMs]);
   const upcomingCalls = useMemo(
     () =>
       calls
@@ -159,7 +210,7 @@ export function UpcomingCallsCalendar({ timeZone, calls, goals }: Props) {
                       padding: '1px 6px',
                     }}
                   >
-                    {dayCalls.length === 1 ? formatCallChipTime(dayCalls[0].scheduledAt, timeZone) : `${dayCalls.length} calls`}
+                  {dayCalls.length === 1 ? formatCallChipTime(dayCalls[0].scheduledAt, timeZone) : `${dayCalls.length} calls`}
                   </span>
                   <span
                     aria-hidden
@@ -200,23 +251,23 @@ export function UpcomingCallsCalendar({ timeZone, calls, goals }: Props) {
             >
               <div style={{ fontFamily: 'var(--font-display)', fontSize: 15, marginBottom: 4 }}>
                 {formatCallChipTime(c.scheduledAt, timeZone)}
-                {c.label?.trim() ? (
+                {c.call.label?.trim() ? (
                   <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink-mid)', fontWeight: 400 }}>
                     {' '}
-                    · {c.label}
+                    · {c.call.label}
                   </span>
                 ) : null}
               </div>
-              {c.recurrence ? (
+              {c.call.recurrence ? (
                 <div style={{ fontSize: 11, color: 'var(--ink-light)', textTransform: 'capitalize', marginBottom: 6 }}>
-                  Repeats {c.recurrence === 'weekdays' ? 'weekdays' : c.recurrence}
+                  Repeats {c.call.recurrence === 'weekdays' ? 'weekdays' : c.call.recurrence}
                 </div>
               ) : null}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {c.goalIds.length === 0 ? (
+                {c.call.goalIds.length === 0 ? (
                   <span style={{ fontSize: 11, color: 'var(--ink-light)' }}>No goals linked</span>
                 ) : (
-                  c.goalIds.map((gid) => {
+                  c.call.goalIds.map((gid) => {
                     const g = goals.find((x) => x.id === gid);
                     return (
                       <span
