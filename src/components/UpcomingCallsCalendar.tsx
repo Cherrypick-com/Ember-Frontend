@@ -1,350 +1,189 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useMemo, type CSSProperties } from 'react';
-import { addMonths, eachDayOfInterval, endOfMonth, endOfWeek, startOfWeek } from 'date-fns';
-import { formatInTimeZone, toDate } from 'date-fns-tz';
-import type { Goal, ScheduledCall } from '@/types';
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
 
-const WEEK_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-function shiftMonthKey(monthKey: string, delta: number, timeZone: string): string {
-  const [y, m] = monthKey.split('-').map(Number);
-  const mid = toDate(`${y}-${String(m).padStart(2, '0')}-15T12:00:00`, { timeZone });
-  const next = addMonths(mid, delta);
-  return formatInTimeZone(next, timeZone, 'yyyy-MM');
-}
-
-function isUpcomingCall(c: ScheduledCall, nowMs: number): boolean {
-  if (c.status === 'completed' || c.status === 'missed' || c.status === 'failed') return false;
-  return new Date(c.scheduledAt).getTime() >= nowMs;
-}
-
-interface CallOccurrence {
+interface Call {
   id: string;
-  scheduledAt: string;
-  call: ScheduledCall;
+  scheduled_time: string;
+  recurrence?: string;
+  goal_title?: string;
+  status?: string;
 }
 
-function buildMonthlyOccurrences(
-  calls: ScheduledCall[],
-  monthKey: string,
-  timeZone: string,
-  nowMs: number
-): Map<string, CallOccurrence[]> {
-  const map = new Map<string, CallOccurrence[]>();
-  if (!monthKey) return map;
+interface CalendarDay {
+  date: Date;
+  isCurrentMonth: boolean;
+  calls: { time: string; call: Call }[];
+}
 
-  const monthStart = toDate(`${monthKey}-01T12:00:00`, { timeZone });
-  const monthEnd = endOfMonth(monthStart);
-  const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
-  const todayKey = formatInTimeZone(new Date(nowMs), timeZone, 'yyyy-MM-dd');
+function getRecurringDates(call: Call, monthStart: Date, monthEnd: Date): Date[] {
+  const base = new Date(call.scheduled_time);
+  const dates: Date[] = [];
 
-  for (const call of calls) {
-    if (call.status === 'completed' || call.status === 'missed' || call.status === 'failed') continue;
+  if (!call.recurrence || call.recurrence === "once") {
+    if (base >= monthStart && base <= monthEnd) dates.push(base);
+    return dates;
+  }
 
-    const baseDate = new Date(call.scheduledAt);
-    const baseKey = formatInTimeZone(baseDate, timeZone, 'yyyy-MM-dd');
-    const baseWeekday = parseInt(formatInTimeZone(baseDate, timeZone, 'i'), 10); // 1=Mon .. 7=Sun
-    const timePart = formatInTimeZone(baseDate, timeZone, 'HH:mm:ss');
-    const startFromKey = baseKey > todayKey ? baseKey : todayKey;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-    if (!call.recurrence) {
-      if (!isUpcomingCall(call, nowMs)) continue;
-      const key = formatInTimeZone(baseDate, timeZone, 'yyyy-MM-dd');
-      if (!key.startsWith(monthKey)) continue;
-      const list = map.get(key) ?? [];
-      list.push({ id: call.id, scheduledAt: call.scheduledAt, call });
-      map.set(key, list);
-      continue;
+  let cursor = new Date(monthStart);
+  while (cursor <= monthEnd) {
+    const dayOfWeek = cursor.getDay(); // 0=Sun, 6=Sat
+    let matches = false;
+
+    if (call.recurrence === "daily") {
+      matches = cursor >= today;
+    } else if (call.recurrence === "weekdays") {
+      matches = cursor >= today && dayOfWeek >= 1 && dayOfWeek <= 5;
+    } else if (call.recurrence === "weekly") {
+      matches = cursor >= today && dayOfWeek === base.getDay();
     }
 
-    for (const day of monthDays) {
-      const dayKey = formatInTimeZone(day, timeZone, 'yyyy-MM-dd');
-      if (dayKey < startFromKey) continue;
+    if (matches) {
+      const d = new Date(cursor);
+      d.setHours(base.getHours(), base.getMinutes(), base.getSeconds());
+      dates.push(d);
+    }
 
-      const weekday = parseInt(formatInTimeZone(day, timeZone, 'i'), 10);
-      if (call.recurrence === 'weekdays' && weekday > 5) continue;
-      if (call.recurrence === 'weekly' && weekday !== baseWeekday) continue;
+    cursor.setDate(cursor.getDate() + 1);
+  }
 
-      const occurrenceDate = toDate(`${dayKey}T${timePart}`, { timeZone });
-      if (occurrenceDate.getTime() < nowMs) continue;
+  return dates;
+}
 
-      const list = map.get(dayKey) ?? [];
-      list.push({
-        id: `${call.id}-${dayKey}`,
-        scheduledAt: occurrenceDate.toISOString(),
-        call,
-      });
-      map.set(dayKey, list);
+function formatTime(date: Date): string {
+  return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+}
+
+function isSameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+}
+
+export default function UpcomingCallsCalendar() {
+  const [calls, setCalls] = useState<Call[]>([]);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.calls.list()
+      .then((data) => setCalls(data || []))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+
+  const monthStart = new Date(year, month, 1);
+  const monthEnd = new Date(year, month + 1, 0, 23, 59, 59);
+
+  // Build a map: dateKey -> { time, call }[]
+  const callMap: Record<string, { time: string; call: Call }[]> = {};
+
+  for (const call of calls) {
+    const dates = getRecurringDates(call, monthStart, monthEnd);
+    for (const d of dates) {
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      if (!callMap[key]) callMap[key] = [];
+      callMap[key].push({ time: formatTime(d), call });
     }
   }
 
-  map.forEach((list) => {
-    list.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
-  });
-  return map;
-}
+  // Build calendar grid (always 6 rows x 7 cols)
+  const firstDayOfWeek = monthStart.getDay();
+  const days: CalendarDay[] = [];
 
-function formatCallChipTime(iso: string, timeZone: string): string {
-  return formatInTimeZone(new Date(iso), timeZone, 'h:mm a');
-}
+  for (let i = 0; i < 42; i++) {
+    const date = new Date(year, month, 1 - firstDayOfWeek + i);
+    const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+    days.push({
+      date,
+      isCurrentMonth: date.getMonth() === month,
+      calls: callMap[key] || [],
+    });
+  }
 
-interface Props {
-  timeZone: string;
-  calls: ScheduledCall[];
-  goals: Goal[];
-}
+  const prevMonth = () => setCurrentMonth(new Date(year, month - 1, 1));
+  const nextMonth = () => setCurrentMonth(new Date(year, month + 1, 1));
 
-export function UpcomingCallsCalendar({ timeZone, calls, goals }: Props) {
-  const [monthKey, setMonthKey] = useState('');
-  const [nowMs, setNowMs] = useState(() => Date.now());
-  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
-
-  useEffect(() => {
-    setMonthKey(formatInTimeZone(new Date(), timeZone, 'yyyy-MM'));
-  }, [timeZone]);
-
-  useEffect(() => {
-    const t = setInterval(() => setNowMs(Date.now()), 60_000);
-    return () => clearInterval(t);
-  }, []);
-
-  const byDate = useMemo(() => buildMonthlyOccurrences(calls, monthKey, timeZone, nowMs), [calls, monthKey, timeZone, nowMs]);
-  const upcomingCalls = useMemo(
-    () =>
-      calls
-        .filter((c) => isUpcomingCall(c, nowMs))
-        .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()),
-    [calls, nowMs]
-  );
-
-  const { days, monthTitle, today } = useMemo(() => {
-    if (!monthKey) return { days: [] as Date[], monthTitle: '', today: '' };
-    const [yy, mm] = monthKey.split('-').map(Number);
-    const monthStart = toDate(`${yy}-${String(mm).padStart(2, '0')}-01T12:00:00`, { timeZone });
-    const monthEnd = endOfMonth(monthStart);
-    const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
-    const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
-    const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
-    const monthTitle = formatInTimeZone(monthStart, timeZone, 'MMMM yyyy');
-    const today = formatInTimeZone(new Date(), timeZone, 'yyyy-MM-dd');
-    return { days, monthTitle, today };
-  }, [monthKey, timeZone]);
-
-  const selectedCalls = selectedDateKey ? (byDate.get(selectedDateKey) ?? []) : [];
-
-  if (!monthKey) return null;
+  const monthLabel = currentMonth.toLocaleString("en-US", { month: "long", year: "numeric" });
+  const today = new Date();
 
   return (
-    <div style={wrapStyle}>
-      <div style={headerRowStyle}>
-        <div style={sidebarTitleStyle}>Upcoming calls</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <button
-            type="button"
-            aria-label="Previous month"
-            onClick={() => setMonthKey((k) => shiftMonthKey(k, -1, timeZone))}
-            style={navBtnStyle}
-          >
-            ‹
-          </button>
-          <span style={{ fontFamily: 'var(--font-display)', fontSize: 16, minWidth: 140, textAlign: 'center' }}>
-            {monthTitle}
-          </span>
-          <button
-            type="button"
-            aria-label="Next month"
-            onClick={() => setMonthKey((k) => shiftMonthKey(k, 1, timeZone))}
-            style={navBtnStyle}
-          >
-            ›
-          </button>
-        </div>
+    <div className="bg-white rounded-2xl border border-gray-100 p-4 w-full">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <button onClick={prevMonth} className="p-1 rounded hover:bg-gray-100 text-gray-500">&#8249;</button>
+        <span className="font-semibold text-gray-800 text-sm">{monthLabel}</span>
+        <button onClick={nextMonth} className="p-1 rounded hover:bg-gray-100 text-gray-500">&#8250;</button>
       </div>
 
-      <div style={weekHeaderRowStyle}>
-        {WEEK_LABELS.map((l) => (
-          <div key={l} style={weekHeaderCellStyle}>
-            {l}
-          </div>
+      {/* Day labels */}
+      <div className="grid grid-cols-7 mb-1">
+        {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d => (
+          <div key={d} className="text-center text-xs text-gray-400 font-medium py-1">{d}</div>
         ))}
       </div>
 
-      <div style={gridStyle}>
-        {days.map((day) => {
-          const dateKey = formatInTimeZone(day, timeZone, 'yyyy-MM-dd');
-          const inMonth = dateKey.startsWith(monthKey);
-          const isToday = dateKey === today;
-          const dayCalls = byDate.get(dateKey) ?? [];
-          const hasCalls = dayCalls.length > 0;
+      {/* Days grid */}
+      {loading ? (
+        <div className="text-center text-sm text-gray-400 py-8">Loading calls...</div>
+      ) : (
+        <div className="grid grid-cols-7 gap-y-1">
+          {days.map((day, i) => {
+            const isToday = isSameDay(day.date, today);
+            const hasCalls = day.calls.length > 0;
+            const isSelected = selectedDay && isSameDay(day.date, selectedDay.date);
 
-          return (
-            <button
-              key={dateKey}
-              type="button"
-              onClick={() => setSelectedDateKey(hasCalls ? (dateKey === selectedDateKey ? null : dateKey) : null)}
-              style={{
-                ...dayCellStyle,
-                opacity: inMonth ? 1 : 0.35,
-                background: isToday ? 'var(--ember-light)' : hasCalls ? 'rgba(200, 96, 42, 0.08)' : 'white',
-                borderColor: isToday ? 'var(--ember)' : hasCalls ? 'rgba(200, 96, 42, 0.35)' : 'var(--cream-border)',
-                outline: selectedDateKey === dateKey ? '2px solid var(--ember)' : 'none',
-                outlineOffset: 0,
-                cursor: hasCalls ? 'pointer' : 'default',
-              }}
-            >
-              <span style={{ fontSize: 13, fontWeight: isToday ? 600 : 500, color: inMonth ? 'var(--ink)' : 'var(--ink-light)' }}>
-                {formatInTimeZone(day, timeZone, 'd')}
-              </span>
-              {hasCalls ? (
-                <>
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 600,
-                      color: 'var(--ember)',
-                      marginTop: 4,
-                      lineHeight: 1.2,
-                      background: 'rgba(200, 96, 42, 0.12)',
-                      borderRadius: 999,
-                      padding: '1px 6px',
-                    }}
-                  >
-                  {dayCalls.length === 1 ? formatCallChipTime(dayCalls[0].scheduledAt, timeZone) : `${dayCalls.length} calls`}
-                  </span>
-                  <span
-                    aria-hidden
-                    style={{
-                      width: 7,
-                      height: 7,
-                      borderRadius: '50%',
-                      background: 'var(--ember)',
-                      position: 'absolute',
-                      right: 6,
-                      bottom: 6,
-                    }}
-                  />
-                </>
-              ) : (
-                <span style={{ fontSize: 10, marginTop: 4, minHeight: 14 }} />
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {selectedCalls.length > 0 && (
-        <div style={detailStyle}>
-          <div style={{ fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink-light)', marginBottom: 8 }}>
-            {formatInTimeZone(toDate(`${selectedDateKey}T12:00:00`, { timeZone }), timeZone, 'EEEE, MMM d')}
-          </div>
-          {selectedCalls.map((c) => (
-            <div
-              key={c.id}
-              style={{
-                padding: '10px 12px',
-                borderRadius: 10,
-                border: '1px solid var(--cream-border)',
-                background: 'var(--cream-dark)',
-                marginBottom: 8,
-              }}
-            >
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: 15, marginBottom: 4 }}>
-                {formatCallChipTime(c.scheduledAt, timeZone)}
-                {c.call.label?.trim() ? (
-                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink-mid)', fontWeight: 400 }}>
-                    {' '}
-                    · {c.call.label}
-                  </span>
-                ) : null}
-              </div>
-              {c.call.recurrence ? (
-                <div style={{ fontSize: 11, color: 'var(--ink-light)', textTransform: 'capitalize', marginBottom: 6 }}>
-                  Repeats {c.call.recurrence === 'weekdays' ? 'weekdays' : c.call.recurrence}
-                </div>
-              ) : null}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {c.call.goalIds.length === 0 ? (
-                  <span style={{ fontSize: 11, color: 'var(--ink-light)' }}>No goals linked</span>
-                ) : (
-                  c.call.goalIds.map((gid) => {
-                    const g = goals.find((x) => x.id === gid);
-                    return (
-                      <span
-                        key={gid}
-                        style={{
-                          fontSize: 11,
-                          padding: '2px 8px',
-                          borderRadius: 100,
-                          background: 'white',
-                          border: '1px solid var(--cream-border)',
-                          color: 'var(--ink-mid)',
-                        }}
-                      >
-                        {g ? `${g.emoji ? `${g.emoji} ` : ''}${g.title}` : gid}
-                      </span>
-                    );
-                  })
+            return (
+              <button
+                key={i}
+                onClick={() => hasCalls ? setSelectedDay(isSelected ? null : day) : setSelectedDay(null)}
+                className={[
+                  "relative flex flex-col items-center py-1 rounded-lg transition-colors",
+                  day.isCurrentMonth ? "text-gray-800" : "text-gray-300",
+                  isToday ? "font-bold" : "",
+                  isSelected ? "bg-orange-50 ring-1 ring-orange-300" : hasCalls ? "hover:bg-gray-50 cursor-pointer" : "cursor-default",
+                ].join(" ")}
+              >
+                <span className={[
+                  "text-xs w-6 h-6 flex items-center justify-center rounded-full",
+                  isToday ? "bg-orange-500 text-white" : "",
+                ].join(" ")}>
+                  {day.date.getDate()}
+                </span>
+                {hasCalls && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-0.5" />
                 )}
-              </div>
-            </div>
-          ))}
+              </button>
+            );
+          })}
         </div>
       )}
 
-      {byDate.size === 0 && (
-        <p style={{ fontSize: 13, color: 'var(--ink-light)', marginTop: 12, marginBottom: 0 }}>
-          No upcoming calls scheduled. Use &ldquo;Schedule a call&rdquo; to add one.
-        </p>
-      )}
-
-      {upcomingCalls.length > 0 && (
-        <div style={detailStyle}>
-          <div style={{ fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink-light)', marginBottom: 8 }}>
-            All upcoming calls
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {upcomingCalls.map((c) => (
-              <div
-                key={`list-${c.id}`}
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: 10,
-                  border: '1px solid var(--cream-border)',
-                  background: 'white',
-                }}
-              >
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: 15, marginBottom: 4 }}>
-                  {formatInTimeZone(new Date(c.scheduledAt), timeZone, 'EEE, MMM d')} · {formatCallChipTime(c.scheduledAt, timeZone)}
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--ink-mid)', marginBottom: 6 }}>
-                  {c.label?.trim() || 'Scheduled check-in'}
-                  {c.recurrence ? ` · Repeats ${c.recurrence === 'weekdays' ? 'weekdays' : c.recurrence}` : ''}
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                  {c.goalIds.length === 0 ? (
-                    <span style={{ fontSize: 11, color: 'var(--ink-light)' }}>No goals linked</span>
-                  ) : (
-                    c.goalIds.map((gid) => {
-                      const g = goals.find((x) => x.id === gid);
-                      return (
-                        <span
-                          key={`list-goal-${c.id}-${gid}`}
-                          style={{
-                            fontSize: 11,
-                            padding: '2px 8px',
-                            borderRadius: 100,
-                            background: 'var(--cream-dark)',
-                            border: '1px solid var(--cream-border)',
-                            color: 'var(--ink-mid)',
-                          }}
-                        >
-                          {g ? `${g.emoji ? `${g.emoji} ` : ''}${g.title}` : gid}
-                        </span>
-                      );
-                    })
-                  )}
-                </div>
+      {/* Selected day detail */}
+      {selectedDay && selectedDay.calls.length > 0 && (
+        <div className="mt-4 border-t border-gray-100 pt-3">
+          <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">
+            {selectedDay.date.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+          </p>
+          <div className="space-y-2">
+            {selectedDay.calls.map(({ time, call }, i) => (
+              <div key={i} className="flex items-center gap-2 bg-orange-50 rounded-lg px-3 py-2">
+                <span className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0" />
+                <span className="text-sm text-orange-900 font-medium">{time}</span>
+                {call.goal_title && (
+                  <span className="text-sm text-orange-700 truncate">— {call.goal_title}</span>
+                )}
+                {call.recurrence && call.recurrence !== "once" && (
+                  <span className="ml-auto text-xs text-orange-400 capitalize">{call.recurrence}</span>
+                )}
               </div>
             ))}
           </div>
@@ -353,88 +192,3 @@ export function UpcomingCallsCalendar({ timeZone, calls, goals }: Props) {
     </div>
   );
 }
-
-const wrapStyle: CSSProperties = {
-  background: 'white',
-  border: '1px solid var(--cream-border)',
-  borderRadius: 'var(--radius)',
-  padding: '1.25rem',
-  marginBottom: '1.5rem',
-  boxShadow: 'var(--shadow)',
-};
-
-const headerRowStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  marginBottom: '1rem',
-  flexWrap: 'wrap',
-  gap: 10,
-};
-
-const sidebarTitleStyle: CSSProperties = {
-  fontSize: 11,
-  letterSpacing: '0.08em',
-  textTransform: 'uppercase',
-  color: 'var(--ink-light)',
-  fontWeight: 500,
-};
-
-const navBtnStyle: CSSProperties = {
-  width: 32,
-  height: 32,
-  borderRadius: 8,
-  border: '1px solid var(--cream-border)',
-  background: 'var(--cream)',
-  color: 'var(--ink)',
-  fontSize: 18,
-  lineHeight: 1,
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontFamily: 'var(--font-body)',
-};
-
-const weekHeaderRowStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(7, 1fr)',
-  gap: 4,
-  marginBottom: 6,
-};
-
-const weekHeaderCellStyle: CSSProperties = {
-  fontSize: 10,
-  fontWeight: 600,
-  letterSpacing: '0.04em',
-  textTransform: 'uppercase',
-  color: 'var(--ink-light)',
-  textAlign: 'center',
-};
-
-const gridStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(7, 1fr)',
-  gap: 4,
-};
-
-const dayCellStyle: CSSProperties = {
-  minHeight: 56,
-  borderRadius: 10,
-  border: '1px solid var(--cream-border)',
-  cursor: 'pointer',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'flex-start',
-  paddingTop: 6,
-  position: 'relative',
-  fontFamily: 'var(--font-body)',
-  transition: 'background 0.15s ease, border-color 0.15s ease',
-};
-
-const detailStyle: CSSProperties = {
-  marginTop: '1rem',
-  paddingTop: '1rem',
-  borderTop: '1px solid var(--cream-border)',
-};
