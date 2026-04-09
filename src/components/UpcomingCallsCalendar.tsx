@@ -11,7 +11,7 @@ interface CalendarDay {
 }
 
 function getRecurringDates(call: ScheduledCall, monthStart: Date, monthEnd: Date): Date[] {
-  const base = new Date(call.scheduled_time);
+  const base = new Date(call.scheduledAt);
   const dates: Date[] = [];
   const today = new Date();
   today.setHours(0, 0, 0, 0);
