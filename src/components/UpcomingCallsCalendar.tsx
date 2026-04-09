@@ -4,25 +4,17 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { ScheduledCall } from "@/types";
 
-interface Call {
-  id: string;
-  scheduled_time: string;
-  recurrence?: string;
-  goal_title?: string;
-  status?: string;
-}
-
 interface CalendarDay {
   date: Date;
   isCurrentMonth: boolean;
-  calls: { time: string; call: Call }[];
+  calls: { time: string; call: ScheduledCall }[];
 }
 
-function getRecurringDates(call: Call, monthStart: Date, monthEnd: Date): Date[] {
-  const base = new Date(call.scheduled_time);
+function getRecurringDates(call: ScheduledCall, monthStart: Date, monthEnd: Date): Date[] {
+  const base = new Date(call.scheduledAt);
   const dates: Date[] = [];
 
-  if (!call.recurrence || call.recurrence === "once") {
+  if (!call.recurrence) {
     if (base >= monthStart && base <= monthEnd) dates.push(base);
     return dates;
   }
@@ -66,7 +58,7 @@ function isSameDay(a: Date, b: Date): boolean {
 }
 
 export default function UpcomingCallsCalendar() {
-  const [calls, setCalls] = useState<Call[]>([]);
+  const [calls, setCalls] = useState<ScheduledCall[]>([]);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null);
   const [loading, setLoading] = useState(true);
@@ -85,7 +77,7 @@ export default function UpcomingCallsCalendar() {
   const monthEnd = new Date(year, month + 1, 0, 23, 59, 59);
 
   // Build a map: dateKey -> { time, call }[]
-  const callMap: Record<string, { time: string; call: Call }[]> = {};
+  const callMap: Record<string, { time: string; call: ScheduledCall }[]> = {};
 
   for (const call of calls) {
     const dates = getRecurringDates(call, monthStart, monthEnd);
@@ -179,10 +171,10 @@ export default function UpcomingCallsCalendar() {
               <div key={i} className="flex items-center gap-2 bg-orange-50 rounded-lg px-3 py-2">
                 <span className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0" />
                 <span className="text-sm text-orange-900 font-medium">{time}</span>
-                {call.goal_title && (
-                  <span className="text-sm text-orange-700 truncate">— {call.goal_title}</span>
+                {call.label && (
+                  <span className="text-sm text-orange-700 truncate">— {call.label}</span>
                 )}
-                {call.recurrence && call.recurrence !== "once" && (
+                {call.recurrence && (
                   <span className="ml-auto text-xs text-orange-400 capitalize">{call.recurrence}</span>
                 )}
               </div>
