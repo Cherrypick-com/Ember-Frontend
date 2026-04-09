@@ -131,7 +131,7 @@ export function UpcomingCallsCalendar({ timeZone, calls, goals }: Props) {
             <button
               key={dateKey}
               type="button"
-              onClick={() => setSelectedDateKey(dateKey === selectedDateKey ? null : dateKey)}
+              onClick={() => setSelectedDateKey(hasCalls ? (dateKey === selectedDateKey ? null : dateKey) : null)}
               style={{
                 ...dayCellStyle,
                 opacity: inMonth ? 1 : 0.35,
@@ -139,23 +139,41 @@ export function UpcomingCallsCalendar({ timeZone, calls, goals }: Props) {
                 borderColor: isToday ? 'var(--ember)' : hasCalls ? 'rgba(200, 96, 42, 0.35)' : 'var(--cream-border)',
                 outline: selectedDateKey === dateKey ? '2px solid var(--ember)' : 'none',
                 outlineOffset: 0,
+                cursor: hasCalls ? 'pointer' : 'default',
               }}
             >
               <span style={{ fontSize: 13, fontWeight: isToday ? 600 : 500, color: inMonth ? 'var(--ink)' : 'var(--ink-light)' }}>
                 {formatInTimeZone(day, timeZone, 'd')}
               </span>
               {hasCalls ? (
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 600,
-                    color: 'var(--ember)',
-                    marginTop: 4,
-                    lineHeight: 1.2,
-                  }}
-                >
-                  {dayCalls.length === 1 ? formatCallChipTime(dayCalls[0].scheduledAt, timeZone) : `${dayCalls.length} calls`}
-                </span>
+                <>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: 'var(--ember)',
+                      marginTop: 4,
+                      lineHeight: 1.2,
+                      background: 'rgba(200, 96, 42, 0.12)',
+                      borderRadius: 999,
+                      padding: '1px 6px',
+                    }}
+                  >
+                    {dayCalls.length === 1 ? formatCallChipTime(dayCalls[0].scheduledAt, timeZone) : `${dayCalls.length} calls`}
+                  </span>
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 7,
+                      height: 7,
+                      borderRadius: '50%',
+                      background: 'var(--ember)',
+                      position: 'absolute',
+                      right: 6,
+                      bottom: 6,
+                    }}
+                  />
+                </>
               ) : (
                 <span style={{ fontSize: 10, marginTop: 4, minHeight: 14 }} />
               )}
@@ -359,6 +377,7 @@ const dayCellStyle: CSSProperties = {
   alignItems: 'center',
   justifyContent: 'flex-start',
   paddingTop: 6,
+  position: 'relative',
   fontFamily: 'var(--font-body)',
   transition: 'background 0.15s ease, border-color 0.15s ease',
 };
