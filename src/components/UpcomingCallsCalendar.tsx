@@ -16,9 +16,8 @@ function getRecurringDates(call: ScheduledCall, monthStart: Date, monthEnd: Date
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const recurrence = (call.recurrence as string) || "once";
-
-  if (!recurrence || recurrence === "once") {
+  const recurrenceValue = call.recurrence as string;
+  if (!recurrenceValue || recurrenceValue === "once") {
     if (base >= monthStart && base <= monthEnd) dates.push(base);
     return dates;
   }
@@ -27,9 +26,9 @@ function getRecurringDates(call: ScheduledCall, monthStart: Date, monthEnd: Date
   while (cursor <= monthEnd) {
     const dow = cursor.getDay();
     let matches = false;
-    if (recurrence === "daily") matches = cursor >= today;
-    else if (recurrence === "weekdays") matches = cursor >= today && dow >= 1 && dow <= 5;
-    else if (recurrence === "weekly") matches = cursor >= today && dow === base.getDay();
+    if (recurrenceValue === "daily") matches = cursor >= today;
+    else if (recurrenceValue === "weekdays") matches = cursor >= today && dow >= 1 && dow <= 5;
+    else if (recurrenceValue === "weekly") matches = cursor >= today && dow === base.getDay();
     if (matches) {
       const d = new Date(cursor);
       d.setHours(base.getHours(), base.getMinutes(), 0);
