@@ -57,3 +57,12 @@ textarea,
 select {
   font-family: var(--font-body);
 }
+
+.goal-remove {
+  color: var(--ink-light);
+  transition: color 0.15s ease;
+}
+
+.goal-remove:hover {
+  color: var(--ember);
+}

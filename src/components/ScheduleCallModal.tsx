@@ -24,7 +24,7 @@ export function ScheduleCallModal({ open, onClose }: Props) {
     label: '',
     date: new Date().toISOString().split('T')[0],
     time: '07:30',
-    recurrence: 'daily' as Recurrence,
+    recurrence: null as Recurrence,
     goalIds: [] as string[],
   });
   const [loading, setLoading] = useState(false);
@@ -82,6 +82,16 @@ export function ScheduleCallModal({ open, onClose }: Props) {
     }
   }
 
+  const repeatEnabled = form.recurrence !== null;
+  const repeatSummary =
+    form.recurrence === 'daily'
+      ? 'Calls repeat every day at your selected time.'
+      : form.recurrence === 'weekdays'
+        ? 'Calls repeat Monday to Friday at your selected time.'
+        : form.recurrence === 'weekly'
+          ? 'Calls repeat weekly at your selected time.'
+          : 'This call is scheduled one time.';
+
   return (
     <Modal open={open} onClose={onClose} title="Schedule a call" subtitle="Sage will call your phone at the scheduled time.">
       <Input
@@ -93,7 +103,7 @@ export function ScheduleCallModal({ open, onClose }: Props) {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: '1.25rem' }}>
         <div>
-          <label style={labelStyle}>Date</label>
+          <label style={labelStyle}>{repeatEnabled ? 'Start date' : 'Date'}</label>
           <input type="date" style={inputStyle} value={form.date} onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))} />
         </div>
         <div>
@@ -103,28 +113,53 @@ export function ScheduleCallModal({ open, onClose }: Props) {
       </div>
 
       <div style={{ marginBottom: '1.25rem' }}>
-        <label style={labelStyle}>Repeat</label>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const }}>
-          {RECURRENCE_OPTIONS.map((opt) => (
-            <button
-              key={String(opt.value)}
-              onClick={() => setForm((p) => ({ ...p, recurrence: opt.value }))}
-              style={{
-                padding: '8px 16px',
-                borderRadius: 100,
-                fontSize: 13,
-                fontFamily: 'var(--font-body)',
-                cursor: 'pointer',
-                transition: 'all 0.15s',
-                border: `1.5px solid ${form.recurrence === opt.value ? 'var(--ink)' : 'var(--cream-border)'}`,
-                background: form.recurrence === opt.value ? 'var(--ink)' : 'white',
-                color: form.recurrence === opt.value ? 'var(--cream)' : 'var(--ink-mid)',
-              }}
-            >
-              {opt.label}
-            </button>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <label style={{ ...labelStyle, marginBottom: 0 }}>Repeat</label>
+          <button
+            type="button"
+            onClick={() => setForm((p) => ({ ...p, recurrence: p.recurrence ? null : 'daily' }))}
+            aria-pressed={repeatEnabled}
+            style={{
+              border: '1px solid var(--cream-border)',
+              background: repeatEnabled ? 'var(--ink)' : 'white',
+              color: repeatEnabled ? 'var(--cream)' : 'var(--ink-mid)',
+              borderRadius: 100,
+              fontSize: 12,
+              fontWeight: 500,
+              padding: '6px 12px',
+              fontFamily: 'var(--font-body)',
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+            }}
+          >
+            {repeatEnabled ? 'On' : 'Off'}
+          </button>
         </div>
+        {repeatEnabled && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const, marginBottom: 8 }}>
+            {RECURRENCE_OPTIONS.filter((opt) => opt.value !== null).map((opt) => (
+              <button
+                key={String(opt.value)}
+                type="button"
+                onClick={() => setForm((p) => ({ ...p, recurrence: opt.value }))}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 100,
+                  fontSize: 13,
+                  fontFamily: 'var(--font-body)',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                  border: `1.5px solid ${form.recurrence === opt.value ? 'var(--ink)' : 'var(--cream-border)'}`,
+                  background: form.recurrence === opt.value ? 'var(--ink)' : 'white',
+                  color: form.recurrence === opt.value ? 'var(--cream)' : 'var(--ink-mid)',
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
+        <p style={{ fontSize: 12, color: 'var(--ink-light)', margin: 0 }}>{repeatSummary}</p>
       </div>
 
       <Divider />

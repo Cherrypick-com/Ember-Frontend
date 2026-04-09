@@ -9,11 +9,11 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'ember' | 'ghost' | 'danger';
   size?: 'sm' | 'md';
 }
-export function Button({ variant = 'primary', size = 'md', className, children, ...props }: ButtonProps) {
+export function Button({ variant = 'primary', size = 'md', className, children, style, ...props }: ButtonProps) {
   return (
     <button
       className={clsx('btn', `btn-${variant}`, size === 'sm' && 'btn-sm', className)}
-      style={styles.btn[variant]}
+      style={{ ...styles.btn[variant], ...style }}
       {...props}
     >
       {children}
@@ -32,7 +32,7 @@ export function Card({ children, className, style, onClick }: CardProps) {
 }
 
 // ── Pill / Badge ──────────────────────────────────────────
-type PillColor = 'sage' | 'ember' | 'gold' | 'rose' | 'sky' | 'gray';
+export type PillColor = 'sage' | 'ember' | 'gold' | 'rose' | 'sky' | 'gray';
 interface PillProps { color?: PillColor; children: React.ReactNode; }
 export function Pill({ color = 'gray', children }: PillProps) {
   return <span style={{ ...pillBase, ...pillColors[color] }}>{children}</span>;

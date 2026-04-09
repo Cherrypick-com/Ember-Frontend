@@ -1,7 +1,7 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type CSSProperties } from 'react';
 import { Nav } from '@/components/Nav';
-import { Card, Pill, Button, Input, Textarea, Modal } from '@/components/ui';
+import { Card, Pill, Button, Input, Textarea, Modal, type PillColor } from '@/components/ui';
 import { api } from '@/lib/api';
 import type { Goal, GoalCategory } from '@/types';
 
@@ -15,6 +15,44 @@ const CATEGORIES = [
 ];
 
 const USER_ID = 'd05adcfb-62d3-45ee-9911-df183097e3a0';
+
+/** Soft well behind the emoji — matches category */
+const CATEGORY_EMOJI_WELL: Record<GoalCategory, string> = {
+  health: 'var(--sage-light)',
+  mindfulness: 'var(--sage-light)',
+  fitness: 'var(--rose-light)',
+  learning: 'var(--sky-light)',
+  productivity: 'var(--gold-light)',
+  creative: 'var(--rose-light)',
+  relationship: 'var(--ember-light)',
+  other: 'var(--cream-dark)',
+};
+
+function categoryPillColor(category: GoalCategory): PillColor {
+  const map: Record<GoalCategory, PillColor> = {
+    health: 'sage',
+    mindfulness: 'sage',
+    fitness: 'rose',
+    learning: 'sky',
+    productivity: 'gold',
+    creative: 'rose',
+    relationship: 'ember',
+    other: 'gray',
+  };
+  return map[category] ?? 'gray';
+}
+
+const goalCardStyle: CSSProperties = {
+  borderRadius: 22,
+  background: 'linear-gradient(165deg, #FFFDFB 0%, var(--cream-dark) 48%, #F5F0E8 100%)',
+  border: '1px solid rgba(228, 221, 210, 0.65)',
+  boxShadow: '0 4px 28px rgba(28, 23, 20, 0.06)',
+  padding: '1.2rem 1.35rem',
+  display: 'flex',
+  alignItems: 'flex-start',
+  justifyContent: 'space-between',
+  gap: 16,
+};
 
 export default function GoalsPage() {
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -87,21 +125,67 @@ export default function GoalsPage() {
             <Button onClick={() => setShowModal(true)}>+ Add a goal</Button>
           </Card>
         ) : (
-          <div className="space-y-3">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {goals.map((goal) => (
-              <Card key={goal.id} className="p-4 flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <span className="text-2xl">{goal.emoji || '🎯'}</span>
-                  <div>
-                    <Pill color="sage">Active</Pill>
-                    <h3 className="font-medium text-foreground mt-1">{goal.title}</h3>
-                    <p className="text-sm text-muted-foreground mt-1">{goal.description}</p>
-                    <Pill color="gray">{CATEGORIES.find((c) => c.value === goal.category)?.label || goal.category}</Pill>
+              <Card key={goal.id} style={goalCardStyle}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, minWidth: 0, flex: 1 }}>
+                  <div
+                    style={{
+                      width: 64,
+                      height: 64,
+                      borderRadius: 18,
+                      background: CATEGORY_EMOJI_WELL[goal.category] ?? 'var(--cream-dark)',
+                      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.65)',
+                      fontSize: '2.125rem',
+                      lineHeight: 1,
+                      flexShrink: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                    aria-hidden
+                  >
+                    {goal.emoji || '🎯'}
+                  </div>
+                  <div style={{ minWidth: 0, paddingTop: 2 }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <Pill color="sage">Active</Pill>
+                      <Pill color={categoryPillColor(goal.category)}>
+                        {CATEGORIES.find((c) => c.value === goal.category)?.label || goal.category}
+                      </Pill>
+                    </div>
+                    <h3
+                      style={{
+                        fontFamily: 'var(--font-display)',
+                        fontSize: '1.125rem',
+                        fontWeight: 500,
+                        color: 'var(--ink)',
+                        margin: 0,
+                        lineHeight: 1.35,
+                      }}
+                    >
+                      {goal.title}
+                    </h3>
+                    {goal.description?.trim() ? (
+                      <p style={{ fontSize: 14, marginTop: 10, marginBottom: 0, lineHeight: 1.55, color: 'var(--ink-mid)' }}>
+                        {goal.description}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
                 <button
+                  type="button"
                   onClick={() => deleteGoal(goal.id)}
-                  className="text-muted-foreground hover:text-red-500 text-sm shrink-0"
+                  className="goal-remove"
+                  style={{
+                    flexShrink: 0,
+                    fontSize: 13,
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-body)',
+                    padding: '4px 0',
+                  }}
                 >
                   Remove
                 </button>
