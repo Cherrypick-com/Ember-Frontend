@@ -11,39 +11,30 @@ interface CalendarDay {
 }
 
 function getRecurringDates(call: ScheduledCall, monthStart: Date, monthEnd: Date): Date[] {
-  const base = new Date(call.scheduledAt);
+  const base = new Date(call.scheduled_time);
   const dates: Date[] = [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-  if (!call.recurrence) {
+  if (!call.recurrence || call.recurrence === "once") {
     if (base >= monthStart && base <= monthEnd) dates.push(base);
     return dates;
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
   let cursor = new Date(monthStart);
   while (cursor <= monthEnd) {
-    const dayOfWeek = cursor.getDay(); // 0=Sun, 6=Sat
+    const dow = cursor.getDay();
     let matches = false;
-
-    if (call.recurrence === "daily") {
-      matches = cursor >= today;
-    } else if (call.recurrence === "weekdays") {
-      matches = cursor >= today && dayOfWeek >= 1 && dayOfWeek <= 5;
-    } else if (call.recurrence === "weekly") {
-      matches = cursor >= today && dayOfWeek === base.getDay();
-    }
-
+    if (call.recurrence === "daily") matches = cursor >= today;
+    else if (call.recurrence === "weekdays") matches = cursor >= today && dow >= 1 && dow <= 5;
+    else if (call.recurrence === "weekly") matches = cursor >= today && dow === base.getDay();
     if (matches) {
       const d = new Date(cursor);
-      d.setHours(base.getHours(), base.getMinutes(), base.getSeconds());
+      d.setHours(base.getHours(), base.getMinutes(), 0);
       dates.push(d);
     }
-
     cursor.setDate(cursor.getDate() + 1);
   }
-
   return dates;
 }
 
@@ -52,9 +43,7 @@ function formatTime(date: Date): string {
 }
 
 function isSameDay(a: Date, b: Date): boolean {
-  return a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate();
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
 export default function UpcomingCallsCalendar() {
@@ -65,121 +54,98 @@ export default function UpcomingCallsCalendar() {
 
   useEffect(() => {
     api.calls.list("d05adcfb-62d3-45ee-9911-df183097e3a0")
-      .then((data) => setCalls(data?.calls || data || []))
+      .then((data: any) => setCalls(data?.calls || data || []))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
 
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
-
   const monthStart = new Date(year, month, 1);
   const monthEnd = new Date(year, month + 1, 0, 23, 59, 59);
 
-  // Build a map: dateKey -> { time, call }[]
   const callMap: Record<string, { time: string; call: ScheduledCall }[]> = {};
-
   for (const call of calls) {
-    const dates = getRecurringDates(call, monthStart, monthEnd);
-    for (const d of dates) {
+    for (const d of getRecurringDates(call, monthStart, monthEnd)) {
       const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
       if (!callMap[key]) callMap[key] = [];
       callMap[key].push({ time: formatTime(d), call });
     }
   }
 
-  // Build calendar grid (always 6 rows x 7 cols)
   const firstDayOfWeek = monthStart.getDay();
   const days: CalendarDay[] = [];
-
   for (let i = 0; i < 42; i++) {
     const date = new Date(year, month, 1 - firstDayOfWeek + i);
     const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-    days.push({
-      date,
-      isCurrentMonth: date.getMonth() === month,
-      calls: callMap[key] || [],
-    });
+    days.push({ date, isCurrentMonth: date.getMonth() === month, calls: callMap[key] || [] });
   }
 
-  const prevMonth = () => setCurrentMonth(new Date(year, month - 1, 1));
-  const nextMonth = () => setCurrentMonth(new Date(year, month + 1, 1));
-
-  const monthLabel = currentMonth.toLocaleString("en-US", { month: "long", year: "numeric" });
   const today = new Date();
+  const monthLabel = currentMonth.toLocaleString("en-US", { month: "long", year: "numeric" });
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-4 w-full">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <button onClick={prevMonth} className="p-1 rounded hover:bg-gray-100 text-gray-500">&#8249;</button>
-        <span className="font-semibold text-gray-800 text-sm">{monthLabel}</span>
-        <button onClick={nextMonth} className="p-1 rounded hover:bg-gray-100 text-gray-500">&#8250;</button>
+    <div style={{ background: "white", borderRadius: 16, border: "1px solid #f0f0f0", padding: 16, width: "100%" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <button onClick={() => setCurrentMonth(new Date(year, month - 1, 1))} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#999", padding: "0 8px" }}>‹</button>
+        <span style={{ fontWeight: 600, fontSize: 14, color: "#222" }}>{monthLabel}</span>
+        <button onClick={() => setCurrentMonth(new Date(year, month + 1, 1))} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#999", padding: "0 8px" }}>›</button>
       </div>
 
-      {/* Day labels */}
-      <div className="grid grid-cols-7 mb-1">
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", marginBottom: 4 }}>
         {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d => (
-          <div key={d} className="text-center text-xs text-gray-400 font-medium py-1">{d}</div>
+          <div key={d} style={{ textAlign: "center", fontSize: 11, color: "#aaa", fontWeight: 500, padding: "4px 0" }}>{d}</div>
         ))}
       </div>
 
-      {/* Days grid */}
       {loading ? (
-        <div className="text-center text-sm text-gray-400 py-8">Loading calls...</div>
+        <div style={{ textAlign: "center", color: "#aaa", padding: 24, fontSize: 13 }}>Loading...</div>
       ) : (
-        <div className="grid grid-cols-7 gap-y-1">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "2px 0" }}>
           {days.map((day, i) => {
             const isToday = isSameDay(day.date, today);
             const hasCalls = day.calls.length > 0;
             const isSelected = selectedDay && isSameDay(day.date, selectedDay.date);
-
             return (
               <button
                 key={i}
                 onClick={() => hasCalls ? setSelectedDay(isSelected ? null : day) : setSelectedDay(null)}
-                className={[
-                  "relative flex flex-col items-center py-1 rounded-lg transition-colors",
-                  day.isCurrentMonth ? "text-gray-800" : "text-gray-300",
-                  isToday ? "font-bold" : "",
-                  isSelected ? "bg-orange-50 ring-1 ring-orange-300" : hasCalls ? "hover:bg-gray-50 cursor-pointer" : "cursor-default",
-                ].join(" ")}
+                style={{
+                  display: "flex", flexDirection: "column", alignItems: "center",
+                  padding: "4px 0", background: isSelected ? "#fff5f0" : "none",
+                  border: isSelected ? "1px solid #ffb38a" : "1px solid transparent",
+                  borderRadius: 8, cursor: hasCalls ? "pointer" : "default"
+                }}
               >
-                <span className={[
-                  "text-xs w-6 h-6 flex items-center justify-center rounded-full",
-                  isToday ? "bg-orange-500 text-white" : "",
-                ].join(" ")}>
+                <span style={{
+                  fontSize: 12, width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center",
+                  borderRadius: "50%", fontWeight: isToday ? 700 : 400,
+                  background: isToday ? "#f97316" : "none",
+                  color: isToday ? "white" : day.isCurrentMonth ? "#333" : "#ccc"
+                }}>
                   {day.date.getDate()}
                 </span>
-                {hasCalls && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-0.5" />
-                )}
+                {hasCalls && <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#f97316", marginTop: 2 }} />}
               </button>
             );
           })}
         </div>
       )}
 
-      {/* Selected day detail */}
       {selectedDay && selectedDay.calls.length > 0 && (
-        <div className="mt-4 border-t border-gray-100 pt-3">
-          <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">
+        <div style={{ marginTop: 12, borderTop: "1px solid #f0f0f0", paddingTop: 12 }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: "#aaa", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
             {selectedDay.date.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
           </p>
-          <div className="space-y-2">
-            {selectedDay.calls.map(({ time, call }, i) => (
-              <div key={i} className="flex items-center gap-2 bg-orange-50 rounded-lg px-3 py-2">
-                <span className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0" />
-                <span className="text-sm text-orange-900 font-medium">{time}</span>
-                {call.label && (
-                  <span className="text-sm text-orange-700 truncate">— {call.label}</span>
-                )}
-                {call.recurrence && (
-                  <span className="ml-auto text-xs text-orange-400 capitalize">{call.recurrence}</span>
-                )}
-              </div>
-            ))}
-          </div>
+          {selectedDay.calls.map(({ time, call }, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff5f0", borderRadius: 8, padding: "8px 12px", marginBottom: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#f97316", flexShrink: 0 }} />
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#c2410c" }}>{time}</span>
+              {call.recurrence && call.recurrence !== "once" && (
+                <span style={{ marginLeft: "auto", fontSize: 11, color: "#f97316", textTransform: "capitalize" }}>{call.recurrence}</span>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>
