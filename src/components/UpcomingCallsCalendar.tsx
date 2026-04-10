@@ -142,7 +142,7 @@ export default function UpcomingCallsCalendar() {
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff5f0", borderRadius: 8, padding: "8px 12px", marginBottom: 6 }}>
               <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#f97316", flexShrink: 0 }} />
               <span style={{ fontSize: 13, fontWeight: 600, color: "#c2410c" }}>{time}</span>
-              {call.recurrence && call.recurrence !== "once" && (
+              {(call.recurrence as string) && (call.recurrence as string) !== "once" && (
                 <span style={{ marginLeft: "auto", fontSize: 11, color: "#f97316", textTransform: "capitalize" }}>{call.recurrence}</span>
               )}
             </div>
