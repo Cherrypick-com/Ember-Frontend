@@ -94,6 +94,8 @@ function buildWeekStreakStatus(
 
 export default function DashboardPage() {
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
+  const [cancellingCall, setCancellingCall] = useState(false);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [progress, setProgress] = useState<ProgressStats | null>(null);
@@ -145,6 +147,23 @@ export default function DashboardPage() {
       .filter((g): g is Goal => Boolean(g))
       .map((g) => `${g.emoji ? `${g.emoji} ` : ''}${g.title}`);
   }, [nextCall, goals]);
+
+  async function handleCancelNextCall() {
+    if (!nextCall) return;
+    if (!window.confirm('Are you sure you want to cancel this call?')) return;
+    setCancellingCall(true);
+    try {
+      await api.calls.cancel(nextCall.id);
+      const callsRes = await api.calls.list(USER_ID);
+      setCalls(callsRes.calls || []);
+      setCalendarRefreshKey((k) => k + 1);
+    } catch (e) {
+      console.error('Failed to cancel call', e);
+      window.alert(e instanceof Error ? e.message : 'Could not cancel the call. Please try again.');
+    } finally {
+      setCancellingCall(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -251,7 +270,16 @@ export default function DashboardPage() {
                   Schedule
                 </button>
                 {nextCall ? (
-                  <button type="button" style={outlineCreamBtnStyle}>
+                  <button
+                    type="button"
+                    style={{
+                      ...outlineCreamBtnStyle,
+                      opacity: cancellingCall ? 0.6 : 1,
+                      cursor: cancellingCall ? 'wait' : 'pointer',
+                    }}
+                    disabled={cancellingCall}
+                    onClick={() => void handleCancelNextCall()}
+                  >
                     Cancel call
                   </button>
                 ) : null}
@@ -280,7 +308,7 @@ export default function DashboardPage() {
               ))}
             </div>
 
-            <UpcomingCallsCalendar />
+            <UpcomingCallsCalendar key={calendarRefreshKey} />
 
             {/* Weekly streak */}
             <Card style={{ marginBottom: '1.5rem' }}>
