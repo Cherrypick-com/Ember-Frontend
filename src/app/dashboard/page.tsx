@@ -247,10 +247,14 @@ export default function DashboardPage() {
                 )}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => setScheduleOpen(true)} style={creamBtnStyle}>
-                  Reschedule
+                <button type="button" onClick={() => setScheduleOpen(true)} style={creamBtnStyle}>
+                  Schedule
                 </button>
-                <button style={outlineCreamBtnStyle}>Cancel call</button>
+                {nextCall ? (
+                  <button type="button" style={outlineCreamBtnStyle}>
+                    Cancel call
+                  </button>
+                ) : null}
               </div>
             </div>
 
